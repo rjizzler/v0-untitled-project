@@ -9,5 +9,5 @@ export async function GET(request: Request) {
   })
 }
 
-// Remove the deprecated config export and use the correct metadata approach
+// Use the correct dynamic export for App Router
 export const dynamic = "force-dynamic"

@@ -60,7 +60,7 @@ export class SimpleChatService {
   }
 
   public joinRoom(roomId: string): void {
-    console.log(`Joining room: ${roomId}`)
+    console.log(`Joining room: ${roomId} (localStorage)`)
     this.currentRoom = roomId
   }
 
@@ -71,7 +71,7 @@ export class SimpleChatService {
   public sendMessage(roomId: string, message: Message): void {
     if (typeof window === "undefined") return
 
-    console.log(`Sending message to room ${roomId}:`, message)
+    console.log(`Sending message to room ${roomId} (localStorage):`, message)
 
     try {
       // Add client ID to message
@@ -99,9 +99,6 @@ export class SimpleChatService {
 
       // Save back to localStorage - this will trigger the storage event in other tabs
       localStorage.setItem(messagesKey, JSON.stringify(messages))
-
-      // Notify our own listeners immediately (storage events don't fire in the same tab)
-      this.messageListeners[roomId]?.forEach((listener) => listener(messageWithClientId))
     } catch (error) {
       console.error(`Error sending message to room ${roomId}:`, error)
     }

@@ -12,16 +12,22 @@ const clients = new Map()
 const rooms = new Map()
 
 app.prepare().then(() => {
+  // Create HTTP server
   const server = createServer((req, res) => {
     const parsedUrl = parse(req.url, true)
     handle(req, res, parsedUrl)
   })
 
-  // Create WebSocket server
-  const wss = new WebSocket.Server({ server })
+  // Create WebSocket server attached to the same HTTP server
+  const wss = new WebSocket.Server({
+    server,
+    // Remove path restriction to make connections easier
+    // path: '/api/ws'
+  })
 
   console.log("WebSocket server initialized")
 
+  // Handle new WebSocket connections
   wss.on("connection", (ws) => {
     const clientId = Math.random().toString(36).substring(2, 15)
     clients.set(clientId, { ws })
@@ -33,9 +39,11 @@ app.prepare().then(() => {
       JSON.stringify({
         type: "connected",
         clientId,
+        message: "Successfully connected to chat server",
       }),
     )
 
+    // Handle incoming messages
     ws.on("message", (data) => {
       try {
         const message = JSON.parse(data.toString())
@@ -65,6 +73,7 @@ app.prepare().then(() => {
               type: "joined",
               roomId,
               username,
+              onlineCount: rooms.get(roomId).size,
             }),
           )
 
@@ -80,19 +89,34 @@ app.prepare().then(() => {
               isSystem: true,
             },
           })
+
+          // Also broadcast updated user count
+          broadcastToRoom(roomId, null, {
+            type: "userCount",
+            roomId,
+            count: rooms.get(roomId).size,
+          })
         } else if (message.type === "message") {
           // Broadcast message to all clients in the room
           const { roomId } = message
           broadcastToRoom(roomId, clientId, message)
         } else if (message.type === "ping") {
           // Respond with pong to keep connection alive
-          ws.send(JSON.stringify({ type: "pong" }))
+          ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }))
         }
       } catch (error) {
         console.error("Error processing message:", error)
+        // Send error back to client
+        ws.send(
+          JSON.stringify({
+            type: "error",
+            message: "Failed to process message",
+          }),
+        )
       }
     })
 
+    // Handle disconnections
     ws.on("close", () => {
       console.log(`Client disconnected: ${clientId}`)
 
@@ -119,12 +143,24 @@ app.prepare().then(() => {
                 isSystem: true,
               },
             })
+
+            // Also broadcast updated user count
+            broadcastToRoom(roomId, null, {
+              type: "userCount",
+              roomId,
+              count: rooms.get(roomId).size,
+            })
           }
         }
       }
 
       // Remove client
       clients.delete(clientId)
+    })
+
+    // Handle errors
+    ws.on("error", (error) => {
+      console.error(`WebSocket error for client ${clientId}:`, error)
     })
   })
 
@@ -136,7 +172,7 @@ app.prepare().then(() => {
     console.log(`Broadcasting to room ${roomId} (${room.size} clients)`)
 
     room.forEach((clientId) => {
-      if (clientId !== senderId) {
+      if (senderId === null || clientId !== senderId) {
         const client = clients.get(clientId)
         if (client && client.ws && client.ws.readyState === WebSocket.OPEN) {
           client.ws.send(JSON.stringify(message))
@@ -144,6 +180,15 @@ app.prepare().then(() => {
       }
     })
   }
+
+  // Ping all clients periodically to keep connections alive
+  setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "ping", timestamp: Date.now() }))
+      }
+    })
+  }, 30000) // Every 30 seconds
 
   // Start the server
   const PORT = process.env.PORT || 3000

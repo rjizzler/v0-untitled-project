@@ -5,8 +5,10 @@ import { useState, useEffect } from "react"
 import { ArrowRight } from "lucide-react"
 import ChatRoom from "@/components/chat-room"
 import { isValidContractAddress, normalizeContractAddress } from "@/lib/utils"
-import { useLocalStorage } from "@/hooks/use-local-storage"
 import { XLogo } from "@/components/x-logo"
+import { AuthModal } from "@/components/auth/auth-modal"
+import { authService } from "@/lib/auth-service"
+import { UserProfile } from "@/components/user-profile"
 
 export default function Home() {
   const [contractAddress, setContractAddress] = useState("")
@@ -17,7 +19,8 @@ export default function Home() {
   const [activeChatRoom, setActiveChatRoom] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [_, setUsername] = useLocalStorage("saino-username", "")
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   useEffect(() => {
     // Create floating coins in the background
@@ -30,6 +33,15 @@ export default function Home() {
       rotation: Math.random() * 360,
     }))
     setFloatingCoins(coins)
+  }, [])
+
+  // Subscribe to auth state changes
+  useEffect(() => {
+    const unsubscribe = authService.onAuthStateChanged((user) => {
+      setIsAuthenticated(!!user)
+    })
+
+    return unsubscribe
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,8 +79,6 @@ export default function Home() {
   const handleBackToHome = () => {
     setActiveChatRoom(null)
     setContractAddress("")
-    // Don't clear username to maintain identity across sessions
-    // setUsername("")
   }
 
   if (activeChatRoom) {
@@ -77,6 +87,9 @@ export default function Home() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center relative bg-black overflow-hidden">
+      {/* Auth Modal */}
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+
       {/* Enhanced gradient glow effect at the bottom */}
       <div className="absolute bottom-0 left-0 right-0 h-[500px] bg-gradient-radial from-purple-600/80 via-indigo-500/30 to-transparent rounded-full blur-3xl transform scale-[2.5] animate-pulse-slow"></div>
 
@@ -98,6 +111,20 @@ export default function Home() {
           </div>
         </div>
       ))}
+
+      {/* Header with auth */}
+      <div className="absolute top-4 right-4 z-10">
+        {isAuthenticated ? (
+          <UserProfile />
+        ) : (
+          <button
+            onClick={() => setShowAuthModal(true)}
+            className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            Login / Register
+          </button>
+        )}
+      </div>
 
       {/* Chat bubble icon with pulse animation */}
       <div className="absolute top-10 w-full flex justify-center">
