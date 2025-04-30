@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import io from 'socket.io-client';
 
-js
 const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL); // dynamic env var for deployment
 
 export default function ChatApp() {
